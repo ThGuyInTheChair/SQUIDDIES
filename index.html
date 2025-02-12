@@ -195,7 +195,6 @@
 <body>
   <div class="layout">
     <div class="filter-window">
-     
       <button id="toggle-filters" class="toggle-btn">Show Filters</button>
       <div id="filters-container" style="display: none;">
         <div id="filters"></div>
@@ -218,9 +217,7 @@
   </div>
   
   <script>
-    const inscriptions = 
-
-      [
+    const inscriptions = [
   {
     "id": "81b583538941d67cf53a8edadf3e86b2bea4b2702e4618a80fcbfcb0af6d16dei0",
     "meta": {
@@ -70772,7 +70769,11 @@
       ]
     }
   }
-]
+];
+    
+    let filteredData = [];
+    let currentIndex = 0;
+    const pageSize = 20;
     
     const filtersContainer = document.getElementById('filters');
     const filterOptions = {}; 
@@ -70825,10 +70826,15 @@
       });
     });
     
-    const container = document.getElementById('container');
-    const searchInput = document.getElementById('search');
-    const shuffleBtn = document.getElementById('shuffle');
-    const removeFiltersBtn = document.getElementById('removeFilters');
+    const observer = new IntersectionObserver((entries, observer) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const iframe = entry.target;
+          iframe.src = iframe.getAttribute('data-src');
+          observer.unobserve(iframe);
+        }
+      });
+    });
     
     function createCard(item) {
       const card = document.createElement('div');
@@ -70847,19 +70853,16 @@
       return card;
     }
     
-    const observer = new IntersectionObserver((entries, observer) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          const iframe = entry.target;
-          iframe.src = iframe.getAttribute('data-src');
-          observer.unobserve(iframe);
-        }
-      });
-    });
+    const container = document.getElementById('container');
+    const searchInput = document.getElementById('search');
+    const shuffleBtn = document.getElementById('shuffle');
+    const removeFiltersBtn = document.getElementById('removeFilters');
     
     function updateDisplay() {
       container.innerHTML = "";
-      let filteredData = inscriptions.filter(item => {
+      currentIndex = 0; /
+      
+      filteredData = inscriptions.filter(item => {
         for (const trait in activeFilters) {
           const values = activeFilters[trait];
           const match = item.meta.attributes.some(attr => attr.trait_type === trait && values.has(attr.value));
@@ -70873,20 +70876,48 @@
         filteredData = filteredData.filter(item => item.id.toLowerCase().includes(searchQuery));
       }
       
-      filteredData.forEach(item => {
+      loadNextBatch();
+    }
+    
+    function loadNextBatch() {
+      const batch = filteredData.slice(currentIndex, currentIndex + pageSize);
+      batch.forEach(item => {
         const card = createCard(item);
         container.appendChild(card);
       });
+      currentIndex += pageSize;
       
-      setTimeout(() => {
-        const iframes = container.querySelectorAll('.preview iframe');
-        iframes.forEach(iframe => {
-          if (!iframe.src) {
-            iframe.src = iframe.getAttribute('data-src');
-          }
-        });
-      }, 300);
+      if (currentIndex < filteredData.length) {
+        let sentinel = document.getElementById('sentinel');
+        if (!sentinel) {
+          sentinel = document.createElement('div');
+          sentinel.id = 'sentinel';
+          container.appendChild(sentinel);
+          observerSentinel.observe(sentinel);
+        }
+      } else {
+        const sentinel = document.getElementById('sentinel');
+        if (sentinel) {
+          observerSentinel.unobserve(sentinel);
+          sentinel.remove();
+        }
+      }
     }
+    
+    const observerSentinel = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          loadNextBatch();
+        }
+      });
+    });
+    
+    searchInput.addEventListener('input', updateDisplay);
+    
+    shuffleBtn.addEventListener('click', () => {
+      shuffleArray(inscriptions);
+      updateDisplay();
+    });
     
     function shuffleArray(array) {
       for (let i = array.length - 1; i > 0; i--) {
@@ -70895,13 +70926,16 @@
       }
     }
     
-    searchInput.addEventListener('input', updateDisplay);
-    
-    updateDisplay();
+    removeFiltersBtn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+      });
+      activeFilters = {};
+      updateDisplay();
+    });
     
     const toggleFiltersBtn = document.getElementById('toggle-filters');
     const filtersContainerDiv = document.getElementById('filters-container');
-    
     toggleFiltersBtn.addEventListener('click', () => {
       if (filtersContainerDiv.style.display === 'none' || filtersContainerDiv.style.display === '') {
         filtersContainerDiv.style.display = 'block';
@@ -70911,6 +70945,8 @@
         toggleFiltersBtn.textContent = 'Show Filters';
       }
     });
+    
+    updateDisplay();
   </script>
 </body>
 </html>
